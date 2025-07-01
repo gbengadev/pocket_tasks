@@ -2,34 +2,58 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/task_database.dart';
 import '../model/task.dart';
 
-enum TaskSortOption { newestFirst, oldestFirst }
-
+// Manages the task list and syncs changes with the local database
 class TaskListNotifier extends StateNotifier<List<Task>> {
   TaskListNotifier() : super([]) {
     loadTasks();
   }
 
+  // Loads all tasks from the database into state
   Future<void> loadTasks() async {
-    final Tasks = await TaskDatabase.getTasks();
-    state = Tasks;
+    try {
+      final tasks = await TaskDatabase.getTasks();
+      state = tasks;
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  Future<void> addTask(Task Task) async {
-    await TaskDatabase.addTask(Task);
-    await loadTasks();
+  // Adds a new task to the database and updates state
+  Future<void> addTask(Task task) async {
+    try {
+      await TaskDatabase.addTask(task);
+      await loadTasks();
+      // state = [...state, newTask];
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  Future<void> updateTask(Task Task) async {
-    await TaskDatabase.updateTask(Task);
-    await loadTasks();
+  // Updates an existing task in the database and state
+  Future<void> updateTask(Task updatedTask) async {
+    try {
+      await TaskDatabase.updateTask(updatedTask);
+      state = [
+        for (final task in state)
+          if (task.id == updatedTask.id) updatedTask else task
+      ];
+    } catch (e) {
+      rethrow;
+    }
   }
 
-  Future<void> deleteTask(int id) async {
-    await TaskDatabase.deleteTask(id);
-    await loadTasks();
+  // Deletes a task by id from the database and updates state
+  Future<void> deleteTask(int taskId) async {
+    try {
+      await TaskDatabase.deleteTask(taskId); // Renamed here
+      state = state.where((task) => task.id != taskId).toList();
+    } catch (e) {
+      rethrow;
+    }
   }
 }
 
+// Provides a list of tasks, supports fetching, adding, updating, deleting tasks
 final taskListProvider =
     StateNotifierProvider<TaskListNotifier, List<Task>>((ref) {
   return TaskListNotifier();
@@ -39,20 +63,25 @@ final taskStatusFilterProvider = StateProvider<String?>((ref) => null);
 
 final filteredTaskListProvider =
     Provider.family<List<Task>, String?>((ref, statusFilter) {
-  final Tasks = ref.watch(taskListProvider);
-  if (statusFilter == null) return Tasks;
-  return Tasks.where((Task) => Task.status == statusFilter).toList();
+  final tasks = ref.watch(taskListProvider);
+  if (statusFilter == null) return tasks;
+  return tasks.where((task) => task.status == statusFilter).toList();
 });
 
 final sortedTaskListProvider =
     Provider.family<List<Task>, TaskSortOption>((ref, sortOption) {
-  final Tasks = ref.watch(taskListProvider);
-  final sortedTasks = [...Tasks];
+  final tasks = ref.watch(taskListProvider);
+  final sortedTasks = [...tasks];
   sortedTasks.sort((a, b) {
-    if (sortOption == TaskSortOption.newestFirst) {
-      return b.createdAt.compareTo(a.createdAt);
-    } else {
-      return a.createdAt.compareTo(b.createdAt);
+    switch (sortOption) {
+      case TaskSortOption.createdAtAsc:
+        return a.createdAt.compareTo(b.createdAt);
+      case TaskSortOption.createdAtDesc:
+        return b.createdAt.compareTo(a.createdAt);
+      case TaskSortOption.dueDateAsc:
+        return a.dueDate!.compareTo(b.dueDate!);
+      case TaskSortOption.dueDateDesc:
+        return b.dueDate!.compareTo(a.dueDate!);
     }
   });
   return sortedTasks;

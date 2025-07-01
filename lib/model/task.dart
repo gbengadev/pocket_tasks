@@ -4,7 +4,7 @@ class Task {
   final String content;
   final DateTime createdAt;
   final DateTime updatedAt;
-  final String status;
+  late final String status;
   final DateTime? dueDate;
 
   Task({
@@ -60,4 +60,11 @@ class Task {
       dueDate: dueDate ?? this.dueDate,
     );
   }
+}
+
+enum TaskSortOption {
+  createdAtAsc,
+  createdAtDesc,
+  dueDateAsc,
+  dueDateDesc,
 }
